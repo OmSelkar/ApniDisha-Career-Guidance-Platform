@@ -305,10 +305,6 @@ python evaluate_model.py  # Model metrics
 
 ## 👨‍💻 Author
 
-**Pranay** — Built with ❤️ for Indian students navigating career choices.
+**Om** — Built with ❤️ for Indian students navigating career choices.
 
 ---
-
-## 📄 License
-
-MIT — Free to use, modify, and distribute.
