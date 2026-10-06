@@ -5,13 +5,18 @@ export async function POST(request: Request) {
         const body = await request.json();
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+
         const pythonResponse = await fetch(`${API_BASE_URL}/predict-career`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify(body),
+            signal: controller.signal,
         });
+        clearTimeout(timeout);
 
         const data = await pythonResponse.json();
         if (pythonResponse.status === 422) {
