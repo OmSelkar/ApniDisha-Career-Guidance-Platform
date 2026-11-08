@@ -41,6 +41,8 @@ import {
 import Link from "next/link";
 import VoiceMentorCall from "../components/VoiceMentorCall";
 import confetti from "canvas-confetti";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -391,21 +393,28 @@ export default function Dashboard() {
   const sendMessage = async () => {
     if (!chatMessage.trim()) return;
 
-    const newMsg = { role: "user", content: chatMessage };
-    setChatHistory([...chatHistory, newMsg]);
-    setChatMessage("");
-    setIsChatLoading(true);
+  const newMsg = { role: "user", content: chatMessage };
+  const historyToSend = chatHistory; // snapshot before the state update
+  setChatHistory([...chatHistory, newMsg]);
+  setChatMessage("");
+  setIsChatLoading(true);
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: chatMessage,
-          cluster: topCluster,
-          history: chatHistory,
-        }),
-      });
+  try {
+    const response = await fetch(`${API_BASE_URL}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: newMsg.content,
+        name: user?.firstName || "",
+        grade: localStorage.getItem(`apnidisha_user_grade_${user?.id}`) || "10th Grade",
+        city: activeLocation === "INDORE" ? "Indore" : activeLocation, // or store the real city
+        predicted_cluster: topCluster,
+        confidence_score: confidenceScore,
+        top_careers: recommendedJobs.slice(0, 3),
+        language: "english", // or from a language selector
+        history: historyToSend,
+      }),
+    });
       const data = await response.json();
       if (data.success) {
         setChatHistory((prev) => [
@@ -709,7 +718,343 @@ export default function Dashboard() {
               </a>
             </div>
 
-            
+            {explanation && (
+              <div className="mt-6 relative z-10">
+                <button
+                  onClick={() => setShowExplanation(!showExplanation)}
+                  className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                    isDark
+                      ? "bg-[#1A1A1A] border-[#333] hover:border-indigo-500/50 text-white"
+                      : "bg-slate-50 border-slate-200 hover:border-indigo-300 text-slate-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`p-2 rounded-xl ${isDark ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-100 text-indigo-600"}`}
+                    >
+                      <Lightbulb className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-bold text-sm block">
+                        Why This Career Is For You
+                      </span>
+                      <span
+                        className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                      >
+                        Personalized explanation based on your choices
+                      </span>
+                    </div>
+                  </div>
+                  {showExplanation ? (
+                    <ChevronUp className="w-5 h-5 shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 shrink-0" />
+                  )}
+                </button>
+
+                {showExplanation && (
+                  <div
+                    className={`mt-3 rounded-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 ${
+                      isDark
+                        ? "bg-[#141414] border-[#2A2A2A]"
+                        : "bg-white border-slate-200 shadow-sm"
+                    }`}
+                  >
+                    {/* AI Explanation Text */}
+                    {explanation.summary && (
+                      <div
+                        className={`p-6 border-b ${isDark ? "border-[#2A2A2A]" : "border-slate-100"}`}
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <div
+                            className={`w-2 h-2 rounded-full bg-indigo-500 animate-pulse`}
+                          ></div>
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? "text-indigo-400" : "text-indigo-600"}`}
+                          >
+                            AI Personalised Analysis
+                          </span>
+                        </div>
+                        <p
+                          className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                        >
+                          {explanation.summary}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* What You Chose */}
+                    {explanation.key_questions &&
+                      explanation.key_questions.length > 0 && (
+                        <div
+                          className={`p-6 border-b ${isDark ? "border-[#2A2A2A]" : "border-slate-100"}`}
+                        >
+                          <h4
+                            className={`text-[10px] font-bold uppercase tracking-wider mb-4 flex items-center gap-2 ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                          >
+                            <span>✅</span> Choices that pointed here
+                          </h4>
+                          <div className="space-y-3">
+                            {explanation.key_questions.map(
+                              (qa: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className={`p-3 rounded-xl border-l-2 ${
+                                    qa.rating >= 5
+                                      ? isDark
+                                        ? "border-emerald-500 bg-emerald-500/5"
+                                        : "border-emerald-400 bg-emerald-50"
+                                      : isDark
+                                        ? "border-amber-500 bg-amber-500/5"
+                                        : "border-amber-400 bg-amber-50"
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <p
+                                      className={`text-sm leading-relaxed flex-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                                    >
+                                      {qa.question}
+                                    </p>
+                                    <span
+                                      className={`text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-md whitespace-nowrap shrink-0 ${
+                                        qa.rating >= 5
+                                          ? isDark
+                                            ? "bg-emerald-500/20 text-emerald-400"
+                                            : "bg-emerald-100 text-emerald-700"
+                                          : isDark
+                                            ? "bg-amber-500/20 text-amber-400"
+                                            : "bg-amber-100 text-amber-700"
+                                      }`}
+                                    >
+                                      {qa.answer_label}
+                                    </span>
+                                  </div>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                    {/* How Other Paths Compared */}
+                   {explanation.cluster_comparison &&
+  explanation.cluster_comparison.length > 1 && (
+    <div
+      className={`p-6 border-b ${
+        isDark ? "border-[#2A2A2A]" : "border-slate-100"
+      }`}
+    >
+      <h4
+        className={`text-[10px] font-bold uppercase tracking-wider mb-4 flex items-center gap-2 ${
+          isDark ? "text-slate-500" : "text-slate-400"
+        }`}
+      >
+        <span>📊</span> How other paths compared
+      </h4>
+      <div className="space-y-2">
+        {explanation.cluster_comparison
+          .slice(0, 4)
+          .map((c: any, idx: number) => (
+            <div
+              key={idx}
+              className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                c.is_winner
+                  ? isDark
+                    ? "bg-indigo-900/20"
+                    : "bg-indigo-50"
+                  : isDark
+                  ? "bg-[#2A2A2A] hover:bg-[#333]"
+                  : "bg-slate-50 hover:bg-slate-100"
+              }`}
+            >
+              <span
+                className={`text-sm font-semibold truncate pr-4 ${
+                  c.is_winner
+                    ? isDark
+                      ? "text-indigo-400"
+                      : "text-indigo-600"
+                    : isDark
+                    ? "text-slate-300"
+                    : "text-slate-600"
+                }`}
+              >
+                {c.cluster}
+              </span>
+              
+              <span
+                className={`text-xs font-black px-2.5 py-1 rounded-full shrink-0 ${
+                  c.is_winner
+                    ? isDark
+                      ? "bg-indigo-500/20 text-indigo-300"
+                      : "bg-indigo-100 text-indigo-700"
+                    : isDark
+                    ? "bg-slate-800 text-slate-400"
+                    : "bg-white text-slate-500 shadow-sm border border-slate-100"
+                }`}
+              >
+                {c.probability}%
+              </span>
+            </div>
+          ))}
+      </div>
+    </div>
+  )}
+
+                    {/* Not sure? Retake CTA */}
+                   <div
+  className={`p-6 border-t ${
+    isDark ? "bg-[#0f0f0f] border-[#2A2A2A]" : "bg-slate-50 border-slate-100"
+  }`}
+>
+  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="flex-1">
+      <p
+        className={`text-sm font-bold mb-1 ${
+          isDark ? "text-slate-200" : "text-slate-800"
+        }`}
+      >
+        Doesn't feel right?
+      </p>
+      <p
+        className={`text-xs sm:text-sm ${
+          isDark ? "text-slate-500" : "text-slate-500"
+        }`}
+      >
+        Your answers shape your result — a retake with clearer choices gives a
+        sharper match.
+      </p>
+    </div>
+    
+    <Link
+      href="/onboarding"
+      className={`inline-flex shrink-0 items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide whitespace-nowrap transition-transform hover:scale-105 active:scale-95 shadow-sm ${
+        isDark
+          ? "bg-indigo-600 hover:bg-indigo-500 text-white"
+          : "bg-indigo-600 hover:bg-indigo-700 text-white"
+      }`}
+    >
+      <History className="w-4 h-4" />
+      Retake Quiz
+    </Link>
+  </div>
+</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {rawScores && (
+              <div className="mb-6 mt-6">
+                <button
+                  onClick={() => setShowScoresDropdown(!showScoresDropdown)}
+                  className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                    isDark
+                      ? "bg-[#111] border-[#2A2A2A] hover:border-indigo-500/30 text-white"
+                      : "bg-white border-slate-200 hover:border-indigo-300 text-slate-900 shadow-sm"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`p-2 rounded-xl ${isDark ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-100 text-indigo-600"}`}
+                    >
+                      <BrainCircuit className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-bold text-sm block">
+                        Your Personality Score Breakdown
+                      </span>
+                      <span
+                        className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                      >
+                        RIASEC & OCEAN — raw scores out of 10
+                      </span>
+                    </div>
+                  </div>
+                  {showScoresDropdown ? (
+                    <ChevronUp className="w-5 h-5 shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 shrink-0" />
+                  )}
+                </button>
+
+                {showScoresDropdown && (
+                  <div
+                    className={`mt-3 p-6 rounded-2xl border animate-in fade-in slide-in-from-top-2 duration-300 ${
+                      isDark
+                        ? "bg-[#111] border-[#2A2A2A]"
+                        : "bg-white border-slate-200 shadow-sm"
+                    }`}
+                  >
+                    {/* RIASEC */}
+                    <h4
+                      className={`text-xs font-bold uppercase tracking-wider mb-4 ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                    >
+                      RIASEC — Interest Profile
+                    </h4>
+                    <div className="space-y-3 mb-6">
+                      {Object.entries(rawScores.RIASEC).map(
+                        ([key, val]: any) => (
+                          <div key={key} className="flex items-center gap-3">
+                            <span
+                              className={`text-xs font-bold w-28 shrink-0 ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                            >
+                              {key}
+                            </span>
+                            <div
+                              className={`flex-1 h-2.5 rounded-full overflow-hidden ${isDark ? "bg-[#2A2A2A]" : "bg-slate-100"}`}
+                            >
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-700"
+                                style={{ width: `${(val / 10) * 100}%` }}
+                              />
+                            </div>
+                            <span
+                              className={`text-xs font-black w-10 text-right ${isDark ? "text-indigo-400" : "text-indigo-600"}`}
+                            >
+                              {val}/10
+                            </span>
+                          </div>
+                        ),
+                      )}
+                    </div>
+
+                    {/* OCEAN */}
+                    <h4
+                      className={`text-xs font-bold uppercase tracking-wider mb-4 ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                    >
+                      OCEAN — Personality Traits
+                    </h4>
+                    <div className="space-y-3">
+                      {Object.entries(rawScores.OCEAN).map(
+                        ([key, val]: any) => (
+                          <div key={key} className="flex items-center gap-3">
+                            <span
+                              className={`text-xs font-bold w-28 shrink-0 ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                            >
+                              {key}
+                            </span>
+                            <div
+                              className={`flex-1 h-2.5 rounded-full overflow-hidden ${isDark ? "bg-[#2A2A2A]" : "bg-slate-100"}`}
+                            >
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-700"
+                                style={{ width: `${(val / 10) * 100}%` }}
+                              />
+                            </div>
+                            <span
+                              className={`text-xs font-black w-10 text-right ${isDark ? "text-emerald-400" : "text-emerald-600"}`}
+                            >
+                              {val}/10
+                            </span>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         </div>
         {/* ── RAW SCORES DROPDOWN ─────────────────────────── */}
@@ -1216,79 +1561,7 @@ export default function Dashboard() {
       <aside
         className={`w-80 hidden 2xl:flex flex-col p-6 border-l overflow-y-auto shrink-0 print:hidden ${isDark ? "bg-[#111] border-[#2A2A2A]" : "bg-white border-slate-200"}`}
       >
-        <div
-          className={`p-6 rounded-[2rem] border flex flex-col items-center justify-center relative overflow-hidden mb-6 shadow-sm ${isDark ? "bg-[#0A0A0A] border-[#2A2A2A]" : "bg-white border-slate-200"}`}
-        >
-          <h3
-            className={`text-sm font-bold absolute top-6 left-6 ${isDark ? "text-gray-400" : "text-gray-500"}`}
-          >
-            Profile Readiness
-          </h3>
-
-          <div className="relative w-32 h-32 mt-8 mb-6 flex items-center justify-center">
-            <svg
-              viewBox="0 0 100 100"
-              className="w-full h-full transform -rotate-90"
-            >
-              <circle
-                cx="50"
-                cy="50"
-                r="40"
-                fill="transparent"
-                stroke={isDark ? "#2A2A2A" : "#F1F5F9"}
-                strokeWidth="8"
-              />
-              <circle
-                cx="50"
-                cy="50"
-                r="40"
-                fill="transparent"
-                stroke="#10B981"
-                strokeWidth="8"
-                strokeDasharray="251"
-                strokeDashoffset={251 - 251 * (readinessScore / 100)}
-                strokeLinecap="round"
-                className="transition-all duration-1000 ease-out"
-              />
-            </svg>
-            <div className="absolute flex flex-col items-center">
-              <span
-                className={`text-3xl font-black ${isDark ? "text-white" : "text-slate-900"}`}
-              >
-                {readinessScore}%
-              </span>
-            </div>
-          </div>
-
-          <div className="w-full space-y-3 mt-2">
-            <div className="flex justify-between items-center text-xs font-bold">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-2 h-2 rounded-full ${isTestDone ? "bg-emerald-500" : "bg-gray-300"}`}
-                ></div>
-                <span className={isDark ? "text-gray-300" : "text-gray-700"}>
-                  Tests Taken
-                </span>
-              </div>
-              <span className={isDark ? "text-gray-400" : "text-gray-500"}>
-                {testHistory.length}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-xs font-bold">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-2 h-2 rounded-full ${isProfileDone ? "bg-amber-500" : "bg-gray-300"}`}
-                ></div>
-                <span className={isDark ? "text-gray-300" : "text-gray-700"}>
-                  Profile Data
-                </span>
-              </div>
-              <span className={isDark ? "text-gray-400" : "text-gray-500"}>
-                {isProfileDone}/1
-              </span>
-            </div>
-          </div>
-        </div>
+        
 
         <div className="relative w-full h-80 rounded-[2rem] overflow-hidden mb-6 flex flex-col justify-end p-6 group">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-indigo-800 to-black transition-transform duration-700 group-hover:scale-105"></div>
@@ -1349,7 +1622,28 @@ export default function Dashboard() {
                 <div
                   className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${msg.role === "user" ? (isDark ? "bg-indigo-600 text-white rounded-br-sm" : "bg-indigo-100 text-indigo-900 rounded-br-sm") : isDark ? "bg-[#222] text-slate-200 rounded-bl-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"}`}
                 >
-                  {msg.content}
+                 {msg.role === "assistant" ? (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+        em: ({ children }) => <em className="italic">{children}</em>,
+        ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
+        li: ({ children }) => <li>{children}</li>,
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-500 underline">
+            {children}
+          </a>
+        ),
+      }}
+    >
+      {msg.content}
+    </ReactMarkdown>
+  ) : (
+    <span className="whitespace-pre-wrap">{msg.content}</span>
+  )}
                 </div>
               </div>
             ))}

@@ -37,6 +37,8 @@ export default function VoiceMentorCall() {
   const [language, setLanguage] = useState("english");
   const [showLangMenu, setShowLangMenu] = useState(false);
 
+  console.log("VAPI KEY:", process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY);
+  console.log("ASSISTANT:", process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID);
   // ── Read user context from localStorage ──────────────────────────────────
   const getUserContext = () => {
     if (!user) return {};
@@ -160,14 +162,14 @@ ${langInstruction}
     try {
       // No model override — avoids the provider validation 400
       await globalVapiInstance.start(ASSISTANT_ID, {
-  variableValues: {
-    studentName: getUserContext().name || "",
-    grade: getUserContext().grade,
-    city: getUserContext().city,
-    predicted_cluster: getUserContext().predicted_cluster,
-    confidence_score: getUserContext().confidence_score,
-  },
-});
+        variableValues: {
+          studentName: getUserContext().name || "",
+          grade: getUserContext().grade,
+          city: getUserContext().city,
+          predicted_cluster: getUserContext().predicted_cluster,
+          confidence_score: getUserContext().confidence_score,
+        },
+      });
     } catch (err) {
       console.error("Mic access denied or connection failed:", err);
       setIsConnecting(false);

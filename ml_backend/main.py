@@ -172,12 +172,12 @@ PLAIN_TRAIT_NAMES = {
     "Conventional": "Your attention to detail and organization"
 }
 
-# ANSWER_LABELS = {
-#     5: "You loved it",
-#     4: "This excited you",
-#     2: "Not your thing",
-#     1: "You'd avoid this"
-# }
+ANSWER_LABELS = {
+    5: "You loved it",
+    4: "This excited you",
+    2: "Not your thing",
+    1: "You'd avoid this"
+}
 
 OCEAN_TRAITS = ["Openness", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism"]
 
@@ -186,6 +186,121 @@ ALL_DIMENSIONS = [
     "Realistic", "Investigative", "Artistic", "Social", "Enterprising", "Conventional",
     "Openness", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism"
 ]
+
+def generate_explanation(scores, predicted_cluster, cluster_probs, cluster_prefs, classes, quiz_qa=None):
+    if quiz_qa is None:
+        quiz_qa = []
+
+    key_questions = []
+    for qa in quiz_qa:
+        rating = qa.get("rating", 0)
+        if rating >= 4:
+            category = qa.get("category", "")
+            cluster = qa.get("cluster", "")
+            plain_label = PLAIN_TRAIT_NAMES.get(
+                category, "") if category else ""
+            key_questions.append({
+                "question": qa.get("question", ""),
+                "rating": rating,
+                "answer_label": ANSWER_LABELS.get(rating, "You responded positively"),
+                "plain_trait": plain_label,
+                "category": category,
+                "cluster": cluster,
+                "is_base": qa.get("is_base", False)
+            })
+
+    key_questions.sort(key=lambda x: x["rating"], reverse=True)
+    key_questions = key_questions[:5]
+
+    total_prob = sum(cluster_probs) if sum(cluster_probs) > 0 else 1
+    cluster_comparison = []
+    prob_dict = {cls: round(float(prob) / total_prob * 100, 1)
+                 for cls, prob in zip(classes, cluster_probs)}
+    sorted_clusters = sorted(
+        prob_dict.items(), key=lambda x: x[1], reverse=True)
+    for cls_name, prob_val in sorted_clusters[:5]:
+        cluster_comparison.append({
+            "cluster": cls_name,
+            "probability": prob_val,
+            "is_winner": cls_name == predicted_cluster
+        })
+
+    return {
+        "key_questions": key_questions,
+        "cluster_comparison": cluster_comparison
+    }
+
+
+def generate_llm_explanation(predicted_cluster, top_questions, averages=None, quiz_qa=None):
+    if not groq_api_key or not groq_client:
+        print("❌ LLM SKIP: No Groq API key")
+        return f"Based on what excites you, your interests align perfectly with {predicted_cluster}."
+
+    # Build a rich picture of what the student responded to
+    strong_yes = []
+    strong_no = []
+    
+    if quiz_qa:
+        for qa in quiz_qa:
+            rating = qa.get("rating", 0)
+            question = qa.get("question", "")
+            if rating >= 4 and question:
+                strong_yes.append(f'"{question}" → {"Loved it" if rating == 5 else "Excited about it"}')
+            elif rating <= 2 and question:
+                strong_no.append(f'"{question}" → {"Would avoid this" if rating == 1 else "Not their thing"}')
+
+    yes_text = "\n".join(strong_yes[:5]) if strong_yes else "No strong positives recorded"
+    no_text = "\n".join(strong_no[:3]) if strong_no else "None"
+
+    # Fallback to top_questions if quiz_qa empty
+    if not strong_yes and top_questions:
+        yes_text = "\n".join([f'"{q["question_text"]}"' for q in top_questions[:5]])
+
+    # DEBUG: print what we're sending
+    print(f"🔍 LLM Input — Cluster: {predicted_cluster}")
+    print(f"🔍 Strong YES ({len(strong_yes)}): {yes_text[:200]}")
+    print(f"🔍 Strong NO ({len(strong_no)}): {no_text[:100]}")
+
+    prompt = f"""You are a warm, honest career counselor writing to an Indian high school student (15-17 years old).
+
+The student just completed a career assessment and was matched with: **{predicted_cluster}**
+
+What they said YES to (things they'd enjoy or felt excited about):
+{yes_text}
+
+What they said NO to (things they'd avoid):
+{no_text}
+
+Write a personalized explanation in EXACTLY this structure:
+
+1. **What this match means** (1-2 sentences): Explain what {predicted_cluster} is about in simple, exciting terms — no jargon.
+
+2. **Why YOU specifically** (2-3 sentences): Connect their actual quiz answers to this career. Use phrases like "Because you got excited when..." or "Since you said you'd rather..." — make it feel personal and specific.
+
+3. **What your day might look like** (2-3 sentences): Paint a vivid, relatable picture of what someone in {predicted_cluster} actually does day-to-day. Make it sound real, not like a job description.
+
+4. **A gentle nudge** (1 sentence): End with one warm, encouraging line. If they're unsure, acknowledge that it's okay and suggest retaking to explore other paths.
+
+STRICT RULES:
+- Write in second person ("you", "your") — talk TO the student, not about them
+- NO psychology jargon (no RIASEC, OCEAN, dimensions, traits)
+- Sound like a cool 25-year-old elder sibling, not a textbook
+- Maximum 120 words total
+- Plain text only, no markdown, no bullet points, no bold
+- DO NOT start with "Hi" or any greeting"""
+
+    try:
+        print("🚀 Calling Groq API...")
+        chat_completion = groq_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="openai/gpt-oss-20b",
+            temperature=0.7,
+            max_tokens=250
+        )
+        return chat_completion.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"❌ Groq API Error: {type(e).__name__}: {e}")
+        return f"Based on what excites you, your interests align perfectly with {predicted_cluster}. The scenarios you loved most point clearly toward this path — trust the process and dive in!"
 
 
 # Grade → approximate age group for question tone

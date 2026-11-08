@@ -220,7 +220,6 @@ export default function Home() {
       <footer
         className={`relative z-10 border-t py-8 text-center text-sm ${isDark ? "border-[#2A2A2A] text-slate-500" : "border-slate-200 text-slate-500"}`}
       >
-        <p>© 2026 ApniDisha. Built with ❤️ by Pranay</p>
       </footer>
     </div>
   );
